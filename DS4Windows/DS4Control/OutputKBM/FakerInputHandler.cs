@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Threading;
 using FakerInputWrapper;
 
@@ -125,36 +126,63 @@ namespace DS4Windows.DS4Control
             eventLock.ExitWriteLock();
         }
 
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint SendInput(uint numberOfInputs, SendInputHandler.INPUT[] inputs, int sizeOfInputs);
+
         public override void PerformKeyPress(uint key)
         {
             //Console.WriteLine("PerformKeyPress {0}", key);
             eventLock.EnterWriteLock();
 
-            if (key < MODIFIER_MASK)
+            switch (key)
             {
-                KeyboardKey temp = (KeyboardKey)key;
-                if (!pressedKeys.Contains(temp))
+                case >= 104 and <= 115:
+                    SendInputHandler.INPUT[] tempInput = new SendInputHandler.INPUT[1];
+                    ref SendInputHandler.INPUT temp2 = ref tempInput[0];
+                    ushort scancode = SendInputHandler.scancodeFromVK(key+20);
+                    bool extended = (scancode & 0x100) != 0;
+                    uint curflags = extended ? SendInputHandler.KEYEVENTF_EXTENDEDKEY : 0;
+
+                    temp2.Type = SendInputHandler.INPUT_KEYBOARD;
+                    temp2.Data.Keyboard.ExtraInfo = IntPtr.Zero;
+                    temp2.Data.Keyboard.Flags = curflags;
+                    temp2.Data.Keyboard.Scan = scancode;
+                    temp2.Data.Keyboard.Time = 0;
+                    temp2.Data.Keyboard.Vk = (ushort)(key+20);
+                    uint result = SendInput(1, tempInput, Marshal.SizeOf(tempInput[0]));
+                    break;
+
+                case < MODIFIER_MASK:
                 {
-                    keyReport.KeyDown(temp);
-                    pressedKeys.Add(temp);
-                    syncKeyboard = true;
+                    KeyboardKey temp = (KeyboardKey)key;
+                    if (!pressedKeys.Contains(temp))
+                    {
+                        keyReport.KeyDown(temp);
+                        pressedKeys.Add(temp);
+                        syncKeyboard = true;
+                    }
+
+                    break;
                 }
-            }
-            else if (key < MODIFIER_ENHANCED)
-            {
-                KeyboardModifier modifier = (KeyboardModifier)(key & ~MODIFIER_MASK);
-                if (!modifiers.Contains(modifier))
+                case < MODIFIER_ENHANCED:
                 {
-                    keyReport.KeyDown(modifier);
-                    modifiers.Add(modifier);
-                    syncKeyboard = true;
+                    KeyboardModifier modifier = (KeyboardModifier)(key & ~MODIFIER_MASK);
+                    if (!modifiers.Contains(modifier))
+                    {
+                        keyReport.KeyDown(modifier);
+                        modifiers.Add(modifier);
+                        syncKeyboard = true;
+                    }
+
+                    break;
                 }
-            }
-            else
-            {
-                EnhancedKey temp = (EnhancedKey)(key & ~MODIFIER_ENHANCED);
-                mediaKeyReport.KeyDown(temp);
-                syncEnhancedKeyboard = true;
+                default:
+                {
+                    EnhancedKey temp = (EnhancedKey)(key & ~MODIFIER_ENHANCED);
+                    mediaKeyReport.KeyDown(temp);
+                    syncEnhancedKeyboard = true;
+                    break;
+                }
             }
 
             eventLock.ExitWriteLock();
@@ -204,31 +232,54 @@ namespace DS4Windows.DS4Control
             //Console.WriteLine("PerformKeyRelease {0}", key);
             eventLock.EnterWriteLock();
 
-            if (key < MODIFIER_MASK)
+            switch (key)
             {
-                KeyboardKey temp = (KeyboardKey)key;
-                if (pressedKeys.Contains(temp))
+                case >= 104 and <= 115:
+                    SendInputHandler.INPUT[] tempInput = new SendInputHandler.INPUT[1];
+                    ref SendInputHandler.INPUT temp2 = ref tempInput[0];
+                    ushort scancode = SendInputHandler.scancodeFromVK(key+20);
+                    bool extended = (scancode & 0x100) != 0;
+                    uint curflags = extended ? SendInputHandler.KEYEVENTF_EXTENDEDKEY : 0;
+
+                    temp2.Type = SendInputHandler.INPUT_KEYBOARD;
+                    temp2.Data.Keyboard.ExtraInfo = IntPtr.Zero;
+                    temp2.Data.Keyboard.Flags = curflags | SendInputHandler.KEYEVENTF_KEYUP;
+                    temp2.Data.Keyboard.Scan = scancode;
+                    temp2.Data.Keyboard.Time = 0;
+                    temp2.Data.Keyboard.Vk = (ushort)(key + 20);
+                    uint result = SendInput(1, tempInput, Marshal.SizeOf(tempInput[0]));
+                    break;
+                case < MODIFIER_MASK:
                 {
-                    keyReport.KeyUp(temp);
-                    pressedKeys.Remove(temp);
-                    syncKeyboard = true;
+                    KeyboardKey temp = (KeyboardKey)key;
+                    if (pressedKeys.Contains(temp))
+                    {
+                        keyReport.KeyUp(temp);
+                        pressedKeys.Remove(temp);
+                        syncKeyboard = true;
+                    }
+
+                    break;
                 }
-            }
-            else if (key < MODIFIER_ENHANCED)
-            {
-                KeyboardModifier modifier = (KeyboardModifier)(key & ~MODIFIER_MASK);
-                if (modifiers.Contains(modifier))
+                case < MODIFIER_ENHANCED:
                 {
-                    keyReport.KeyUp(modifier);
-                    modifiers.Remove(modifier);
-                    syncKeyboard = true;
+                    KeyboardModifier modifier = (KeyboardModifier)(key & ~MODIFIER_MASK);
+                    if (modifiers.Contains(modifier))
+                    {
+                        keyReport.KeyUp(modifier);
+                        modifiers.Remove(modifier);
+                        syncKeyboard = true;
+                    }
+
+                    break;
                 }
-            }
-            else
-            {
-                EnhancedKey temp = (EnhancedKey)(key & ~MODIFIER_ENHANCED);
-                mediaKeyReport.KeyUp(temp);
-                syncEnhancedKeyboard = true;
+                default:
+                {
+                    EnhancedKey temp = (EnhancedKey)(key & ~MODIFIER_ENHANCED);
+                    mediaKeyReport.KeyUp(temp);
+                    syncEnhancedKeyboard = true;
+                    break;
+                }
             }
 
             eventLock.ExitWriteLock();

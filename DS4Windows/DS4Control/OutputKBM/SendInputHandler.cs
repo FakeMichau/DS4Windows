@@ -246,7 +246,7 @@ namespace DS4Windows.DS4Control
             return IDENTIFIER;
         }
 
-        private static ushort scancodeFromVK(uint vkey)
+        public static ushort scancodeFromVK(uint vkey)
         {
             ushort scancode = 0;
             if (vkey == VK_PAUSE)
